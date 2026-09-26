@@ -1,24 +1,26 @@
-package core
+package test
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	c "ledger/core"
 )
 
-func TestEngine(t *testing.T) {
+func RunEngineTests(t *testing.T, storageFactory func(t *testing.T) c.Storage) {
 	tests := []struct {
 		name      string
-		operation func() error
+		operation func(e *c.Engine) error
 		wantErr   bool
 	}{
 		{
 			name: "creating account with duplicate ID returns error",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				return engine.CreateAccount(&Account{
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				return e.CreateAccount(context.TODO(), &c.Account{
 					ID:   0,
-					Type: AccountTypeAsset,
+					Type: c.AccountTypeAsset,
 					Name: "",
 				})
 			},
@@ -26,11 +28,10 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating valid account succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				return engine.CreateAccount(&Account{
+			operation: func(e *c.Engine) error {
+				return e.CreateAccount(context.TODO(), &c.Account{
 					ID:   0,
-					Type: AccountTypeAsset,
+					Type: c.AccountTypeAsset,
 					Name: "",
 				})
 			},
@@ -38,11 +39,10 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating account with invalid type returns error",
-			operation: func() error {
-				engine := NewEngine()
-				return engine.CreateAccount(&Account{
+			operation: func(e *c.Engine) error {
+				return e.CreateAccount(context.TODO(), &c.Account{
 					ID:   0,
-					Type: AccountTypeUnknown,
+					Type: c.AccountTypeUnknown,
 					Name: "",
 				})
 			},
@@ -50,151 +50,138 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "finding non-existent account returns error",
-			operation: func() error {
-				engine := NewEngine()
-				_, err := engine.GetAccount(-1)
+			operation: func(e *c.Engine) error {
+				_, err := e.GetAccount(context.TODO(), -1)
 				return err
 			},
 			wantErr: true,
 		},
 		{
 			name: "finding existing account succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				engine.CreateAccount(&Account{
+			operation: func(e *c.Engine) error {
+				e.CreateAccount(context.TODO(), &c.Account{
 					ID:   2,
-					Type: AccountTypeAsset,
+					Type: c.AccountTypeAsset,
 					Name: "Buildings",
 				})
-				_, err := engine.GetAccount(2)
+				_, err := e.GetAccount(context.TODO(), 2)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "getting balance of non-existent account returns error",
-			operation: func() error {
-				engine := NewEngine()
-				_, err := engine.GetAccountBalance(0)
+			operation: func(e *c.Engine) error {
+				_, err := e.GetAccountBalance(context.TODO(), 0)
 				return err
 			},
 			wantErr: true,
 		},
 		{
 			name: "getting balance of existing account (with no snapshots) succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				_, err := engine.GetAccountBalance(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				_, err := e.GetAccountBalance(context.TODO(), 0)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "getting balance of existing account with snapshots succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				createTestTransaction(engine, t)
-				createTestSnapshot(engine, t)
-				_, err := engine.GetAccountBalance(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				CreateTestTransaction(e, t)
+				CreateTestSnapshot(e, t)
+				_, err := e.GetAccountBalance(context.TODO(), 0)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "creating snapshot of non-existent account returns error",
-			operation: func() error {
-				engine := NewEngine()
-				err := engine.CreateSnapshot(0)
+			operation: func(e *c.Engine) error {
+				err := e.CreateSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: true,
 		},
 		{
 			name: "creating snapshot of existing account without transactions succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				err := engine.CreateSnapshot(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				err := e.CreateSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "creating snapshot of existing account with transactions succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				createTestTransaction(engine, t)
-				err := engine.CreateSnapshot(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				CreateTestTransaction(e, t)
+				err := e.CreateSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "creating snapshot of existing account with no new transactions succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				createTestTransaction(engine, t)
-				createTestSnapshot(engine, t)
-				err := engine.CreateSnapshot(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				CreateTestTransaction(e, t)
+				CreateTestSnapshot(e, t)
+				err := e.CreateSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "getting snapshot of non-existent account returns error",
-			operation: func() error {
-				engine := NewEngine()
-				_, err := engine.GetSnapshot(0)
+			operation: func(e *c.Engine) error {
+				_, err := e.GetSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: true,
 		},
 		{
 			name: "getting snapshot of existing account (without snapshots) returns error",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				_, err := engine.GetSnapshot(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				_, err := e.GetSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: true,
 		},
 		{
 			name: "getting snapshot of existing account with snapshots succeeds",
-			operation: func() error {
-				engine := NewEngine()
-				createTestAccount(engine, t)
-				createTestTransaction(engine, t)
-				createTestSnapshot(engine, t)
-				_, err := engine.GetSnapshot(0)
+			operation: func(e *c.Engine) error {
+				CreateTestAccount(e, t)
+				CreateTestTransaction(e, t)
+				CreateTestSnapshot(e, t)
+				_, err := e.GetSnapshot(context.TODO(), 0)
 				return err
 			},
 			wantErr: false,
 		},
 		{
 			name: "creating transaction with duplicate ID returns error",
-			operation: func() error {
-				engine := NewEngine()
+			operation: func(e *c.Engine) error {
 
-				createTestAccount(engine, t)
-				createTestTransaction(engine, t)
-				return engine.AddTransaction(&Transaction{
+				CreateTestAccount(e, t)
+				CreateTestTransaction(e, t)
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             0,
 					IdempotencyKey: "test2",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      0,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         500000,
 						},
 					},
@@ -204,24 +191,23 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating transaction with duplicate idempotency key returns error",
-			operation: func() error {
-				engine := NewEngine()
+			operation: func(e *c.Engine) error {
 
-				createTestAccount(engine, t)
-				createTestTransaction(engine, t)
-				return engine.AddTransaction(&Transaction{
+				CreateTestAccount(e, t)
+				CreateTestTransaction(e, t)
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             2,
 					IdempotencyKey: "test",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      0,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         500000,
 						},
 					},
@@ -231,23 +217,22 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating transaction with uninitialized time returns error",
-			operation: func() error {
-				engine := NewEngine()
+			operation: func(e *c.Engine) error {
 
-				createTestAccount(engine, t)
-				return engine.AddTransaction(&Transaction{
+				CreateTestAccount(e, t)
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test",
 					Timestamp:      time.Time{},
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      0,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         500000,
 						},
 					},
@@ -257,31 +242,29 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating transaction with no ledger entries returns error",
-			operation: func() error {
-				engine := NewEngine()
-				return engine.AddTransaction(&Transaction{
+			operation: func(e *c.Engine) error {
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test",
 					Timestamp:      time.Now(),
-					LedgerEntries:  []LedgerEntry{},
+					LedgerEntries:  []c.LedgerEntry{},
 				})
 			},
 			wantErr: true,
 		},
 		{
 			name: "creating transaction with one ledger entry returns error",
-			operation: func() error {
-				engine := NewEngine()
+			operation: func(e *c.Engine) error {
 
-				createTestAccount(engine, t)
-				return engine.AddTransaction(&Transaction{
+				CreateTestAccount(e, t)
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      0,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 					},
@@ -291,21 +274,20 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating transaction referencing invalid account ID returns error",
-			operation: func() error {
-				engine := NewEngine()
-				return engine.AddTransaction(&Transaction{
+			operation: func(e *c.Engine) error {
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test1",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      1,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 						{
 							AccountID:      1,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         500000,
 						},
 					},
@@ -315,21 +297,20 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating transaction with unbalanced debits and credits returns error",
-			operation: func() error {
-				engine := NewEngine()
-				return engine.AddTransaction(&Transaction{
+			operation: func(e *c.Engine) error {
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      1,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 						{
 							AccountID:      1,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         400000,
 						},
 					},
@@ -339,39 +320,38 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating valid transaction succeeds",
-			operation: func() error {
-				engine := NewEngine()
+			operation: func(e *c.Engine) error {
 
-				engine.CreateAccount(&Account{
+				e.CreateAccount(context.TODO(), &c.Account{
 					ID:   0,
-					Type: AccountTypeEquity,
+					Type: c.AccountTypeEquity,
 					Name: "Owner's Equity",
 				})
 
-				engine.CreateAccount(&Account{
+				e.CreateAccount(context.TODO(), &c.Account{
 					ID:   1,
-					Type: AccountTypeAsset,
+					Type: c.AccountTypeAsset,
 					Name: "Buildings",
 				})
 
-				return engine.AddTransaction(&Transaction{
+				return e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         400000,
 						},
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         100000,
 						},
 						{
 							AccountID:      1,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 					},
@@ -381,13 +361,12 @@ func TestEngine(t *testing.T) {
 		},
 		{
 			name: "creating valid transaction and checking ledger integrity succeeds",
-			operation: func() error {
-				engine := NewEngine()
+			operation: func(e *c.Engine) error {
 
 				var err error
-				err = engine.CreateAccount(&Account{
+				err = e.CreateAccount(context.TODO(), &c.Account{
 					ID:   0,
-					Type: AccountTypeEquity,
+					Type: c.AccountTypeEquity,
 					Name: "Owner's Equity",
 				})
 
@@ -395,9 +374,9 @@ func TestEngine(t *testing.T) {
 					t.Fatalf("creating test account failed: %v", err)
 				}
 
-				err = engine.CreateAccount(&Account{
+				err = e.CreateAccount(context.TODO(), &c.Account{
 					ID:   1,
-					Type: AccountTypeAsset,
+					Type: c.AccountTypeAsset,
 					Name: "Buildings",
 				})
 
@@ -405,24 +384,24 @@ func TestEngine(t *testing.T) {
 					t.Fatalf("creating test account failed: %v", err)
 				}
 
-				err = engine.AddTransaction(&Transaction{
+				err = e.AddTransaction(context.TODO(), &c.Transaction{
 					ID:             1,
 					IdempotencyKey: "test",
 					Timestamp:      time.Now(),
-					LedgerEntries: []LedgerEntry{
+					LedgerEntries: []c.LedgerEntry{
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         400000,
 						},
 						{
 							AccountID:      0,
-							EntryDirection: DirectionCredit,
+							EntryDirection: c.DirectionCredit,
 							Amount:         100000,
 						},
 						{
 							AccountID:      1,
-							EntryDirection: DirectionDebit,
+							EntryDirection: c.DirectionDebit,
 							Amount:         500000,
 						},
 					},
@@ -432,7 +411,7 @@ func TestEngine(t *testing.T) {
 					t.Fatalf("creating test transaction failed: %v", err)
 				}
 
-				return engine.VerifyIntegrity()
+				return e.VerifyIntegrity(context.TODO())
 			},
 			wantErr: false,
 		},
@@ -440,7 +419,13 @@ func TestEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.operation()
+			storage := storageFactory(t)
+			engine, err := c.NewEngine(storage)
+			if err != nil {
+				t.Fatalf("creating engine failed: %v", err)
+			}
+
+			got := tt.operation(engine)
 			if (got != nil) != tt.wantErr {
 				t.Errorf("operation error = %v, want %v", got, tt.wantErr)
 			}
@@ -448,11 +433,11 @@ func TestEngine(t *testing.T) {
 	}
 }
 
-func createTestAccount(e *Engine, t *testing.T) {
+func CreateTestAccount(e *c.Engine, t *testing.T) {
 	t.Helper()
-	err := e.CreateAccount(&Account{
+	err := e.CreateAccount(context.TODO(), &c.Account{
 		ID:   0,
-		Type: AccountTypeAsset,
+		Type: c.AccountTypeAsset,
 		Name: "TestAccount",
 	})
 
@@ -461,21 +446,21 @@ func createTestAccount(e *Engine, t *testing.T) {
 	}
 }
 
-func createTestTransaction(e *Engine, t *testing.T) {
+func CreateTestTransaction(e *c.Engine, t *testing.T) {
 	t.Helper()
-	err := e.AddTransaction(&Transaction{
+	err := e.AddTransaction(context.TODO(), &c.Transaction{
 		ID:             0,
 		IdempotencyKey: "test",
 		Timestamp:      time.Now(),
-		LedgerEntries: []LedgerEntry{
+		LedgerEntries: []c.LedgerEntry{
 			{
 				AccountID:      0,
-				EntryDirection: DirectionDebit,
+				EntryDirection: c.DirectionDebit,
 				Amount:         500000,
 			},
 			{
 				AccountID:      0,
-				EntryDirection: DirectionCredit,
+				EntryDirection: c.DirectionCredit,
 				Amount:         500000,
 			},
 		},
@@ -486,9 +471,9 @@ func createTestTransaction(e *Engine, t *testing.T) {
 	}
 }
 
-func createTestSnapshot(e *Engine, t *testing.T) {
+func CreateTestSnapshot(e *c.Engine, t *testing.T) {
 	t.Helper()
-	err := e.CreateSnapshot(0)
+	err := e.CreateSnapshot(context.TODO(), 0)
 
 	if err != nil {
 		t.Fatalf("creating initial snapshot failed: %v", err)

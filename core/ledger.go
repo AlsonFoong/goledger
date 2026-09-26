@@ -144,9 +144,9 @@ func (t Transaction) Validate() error {
 
 		switch entry.EntryDirection {
 		case DirectionDebit:
-			totalDebits, err = addSignedIntSafe(totalDebits, entry.Amount)
+			totalDebits, err = AddSignedIntSafe(totalDebits, entry.Amount)
 		case DirectionCredit:
-			totalCredits, err = addSignedIntSafe(totalCredits, entry.Amount)
+			totalCredits, err = AddSignedIntSafe(totalCredits, entry.Amount)
 		}
 
 		if err != nil {
@@ -161,7 +161,7 @@ func (t Transaction) Validate() error {
 	return nil
 }
 
-func addSignedIntSafe(a, b int64) (int64, error) {
+func AddSignedIntSafe(a, b int64) (int64, error) {
 	// a + b > math.MaxInt64, b > 0
 	if b > 0 && a > math.MaxInt64-b {
 		return 0, ErrOverflow

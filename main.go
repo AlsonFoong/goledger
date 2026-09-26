@@ -1,29 +1,32 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	c "ledger/core"
 	"strconv"
 	"sync"
 	"time"
+
+	m "ledger/adapters/memory"
 )
 
 func main() {
-	e := c.NewEngine()
+	e, _ := c.NewEngine(m.New())
 
-	e.CreateAccount(&c.Account{
+	e.CreateAccount(context.TODO(), &c.Account{
 		ID:   1,
 		Type: c.AccountTypeEquity,
 		Name: "Owner's Equity",
 	})
 
-	e.CreateAccount(&c.Account{
+	e.CreateAccount(context.TODO(), &c.Account{
 		ID:   2,
 		Type: c.AccountTypeAsset,
 		Name: "Buildings",
 	})
 
-	e.CreateAccount(&c.Account{
+	e.CreateAccount(context.TODO(), &c.Account{
 		ID:   3,
 		Type: c.AccountTypeAsset,
 		Name: "Equipment",
@@ -36,7 +39,7 @@ func main() {
 		wg.Add(1)
 		go func(id int64) {
 			defer wg.Done()
-			e.AddTransaction(&c.Transaction{
+			e.AddTransaction(context.TODO(), &c.Transaction{
 				ID:             int64(i),
 				IdempotencyKey: "tx" + strconv.Itoa(i),
 				Timestamp:      time.Now(),
@@ -69,23 +72,23 @@ func main() {
 	wg.Wait()
 	fmt.Println("Time elapsed (round one):", time.Since(start))
 
-	fmt.Println(e.VerifyIntegrity())
+	fmt.Println(e.VerifyIntegrity(context.TODO()))
 	fmt.Println("Time elapsed (first integrity check):", time.Since(start))
 
-	e.CreateSnapshot(1)
-	e.CreateSnapshot(2)
-	e.CreateSnapshot(3)
+	e.CreateSnapshot(context.TODO(), 1)
+	e.CreateSnapshot(context.TODO(), 2)
+	e.CreateSnapshot(context.TODO(), 3)
 
 	fmt.Println("Time elapsed (snapshots):", time.Since(start))
 
-	fmt.Println(e.VerifyIntegrity())
+	fmt.Println(e.VerifyIntegrity(context.TODO()))
 	fmt.Println("Time elapsed (second integrity check):", time.Since(start))
 
 	for i := 0; i < 1000000; i++ {
 		wg.Add(1)
 		go func(id int64) {
 			defer wg.Done()
-			e.AddTransaction(&c.Transaction{
+			e.AddTransaction(context.TODO(), &c.Transaction{
 				ID:             int64(i),
 				IdempotencyKey: "tx" + strconv.Itoa(i),
 				Timestamp:      time.Now(),
@@ -151,6 +154,6 @@ func main() {
 	// 	fmt.Println("INVALID STATE DETECTED, TOTAL =", total)
 	// }
 
-	fmt.Println(e.VerifyIntegrity())
+	fmt.Println(e.VerifyIntegrity(context.TODO()))
 	fmt.Println("Time elapsed (third integrity check):", time.Since(start))
 }
