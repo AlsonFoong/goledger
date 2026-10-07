@@ -38,32 +38,32 @@ func New() *MemoryStorage {
 	}
 }
 
-func (e *MemoryStorage) GetAccount(ctx context.Context, id int64) (*c.Account, error) {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) GetAccount(ctx context.Context, id int64) (*c.Account, error) {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
-	got, ok := e.Accounts[id]
+	got, ok := mem.Accounts[id]
 	if !ok {
 		return nil, ErrAccountDoesNotExist
 	}
 	return got, nil
 }
 
-func (e *MemoryStorage) GetAccountBalance(ctx context.Context, id int64) (int64, error) {
-	e.Mu.Lock()
-	_, ok := e.Accounts[id]
-	e.Mu.Unlock()
+func (mem *MemoryStorage) GetAccountBalance(ctx context.Context, id int64) (int64, error) {
+	mem.Mu.Lock()
+	_, ok := mem.Accounts[id]
+	mem.Mu.Unlock()
 	if !ok {
 		return 0, ErrAccountDoesNotExist
 	}
 
-	transactionSnapshot, err := e.GetSnapshot(context.Background(), id)
+	transactionSnapshot, err := mem.GetSnapshot(context.Background(), id)
 	if err != nil && err != ErrNoSnapshotFound {
 		return 0, err
 	}
 
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
 	var snapshotAmount int64
 	var lastProcessedTransactionID int64
@@ -76,9 +76,9 @@ func (e *MemoryStorage) GetAccountBalance(ctx context.Context, id int64) (int64,
 	}
 
 	var amount int64
-	for i := lastProcessedTransactionID; i < int64(len(e.TransactionLog)); i++ {
+	for i := lastProcessedTransactionID; i < int64(len(mem.TransactionLog)); i++ {
 
-		tx := e.TransactionLog[i]
+		tx := mem.TransactionLog[i]
 		for _, entry := range tx.LedgerEntries {
 			if entry.AccountID != id {
 				continue
@@ -103,35 +103,35 @@ func (e *MemoryStorage) GetAccountBalance(ctx context.Context, id int64) (int64,
 	return value, nil
 }
 
-func (e *MemoryStorage) GetSnapshot(ctx context.Context, accountId int64) (*c.TransactionSnapshot, error) {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) GetSnapshot(ctx context.Context, accountId int64) (*c.TransactionSnapshot, error) {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
-	got, ok := e.Snapshots[accountId]
+	got, ok := mem.Snapshots[accountId]
 	if !ok {
 		return nil, ErrNoSnapshotFound
 	}
 	return got, nil
 }
 
-func (e *MemoryStorage) CreateSnapshot(ctx context.Context, accountId int64) error {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) CreateSnapshot(ctx context.Context, accountId int64) error {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
-	_, ok := e.Accounts[accountId]
+	_, ok := mem.Accounts[accountId]
 	if !ok {
 		return ErrAccountDoesNotExist
 	}
 
 	var lastProcessedTransactionID int64
-	previousSnapshot, ok := e.Snapshots[accountId]
+	previousSnapshot, ok := mem.Snapshots[accountId]
 	if !ok {
 		lastProcessedTransactionID = 0
 	} else {
 		lastProcessedTransactionID = previousSnapshot.LastProcessedTransactionID
 	}
 
-	unprocessedTransactions := e.TransactionLog[lastProcessedTransactionID:]
+	unprocessedTransactions := mem.TransactionLog[lastProcessedTransactionID:]
 
 	var amount int64
 	var err error
@@ -155,7 +155,7 @@ func (e *MemoryStorage) CreateSnapshot(ctx context.Context, accountId int64) err
 		}
 	}
 
-	e.Snapshots[accountId] = &c.TransactionSnapshot{
+	mem.Snapshots[accountId] = &c.TransactionSnapshot{
 		AccountID:                  accountId,
 		TotalAmount:                amount,
 		LastProcessedTransactionID: lastProcessedTransactionID,
@@ -163,55 +163,55 @@ func (e *MemoryStorage) CreateSnapshot(ctx context.Context, accountId int64) err
 	return nil
 }
 
-func (e *MemoryStorage) CreateAccount(ctx context.Context, acc *c.Account) error {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) CreateAccount(ctx context.Context, acc *c.Account) error {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
 	// if !acc.Type.IsValid() {
 	// 	return ErrAccountTypeInvalid
 	// }
 
-	_, ok := e.Accounts[acc.ID]
+	_, ok := mem.Accounts[acc.ID]
 	if ok {
 		return ErrAccountAlreadyExists
 	}
 
-	e.Accounts[acc.ID] = acc
+	mem.Accounts[acc.ID] = acc
 	return nil
 }
 
-func (e *MemoryStorage) GetTransactionByID(ctx context.Context, id int64) (*c.Transaction, error) {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) GetTransactionByID(ctx context.Context, id int64) (*c.Transaction, error) {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
-	got, ok := e.TransactionIDs[id]
+	got, ok := mem.TransactionIDs[id]
 	if !ok {
 		return nil, ErrNoTransactionFound
 	}
 	return got, nil
 }
 
-func (e *MemoryStorage) GetTransactionByIdempotencyKey(ctx context.Context, idempotencyKey string) (*c.Transaction, error) {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) GetTransactionByIdempotencyKey(ctx context.Context, idempotencyKey string) (*c.Transaction, error) {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
-	got, ok := e.IdempotencyKeys[idempotencyKey]
+	got, ok := mem.IdempotencyKeys[idempotencyKey]
 	if !ok {
 		return nil, ErrNoTransactionFound
 	}
 	return got, nil
 }
 
-func (e *MemoryStorage) AddTransaction(ctx context.Context, t *c.Transaction) error {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (mem *MemoryStorage) AddTransaction(ctx context.Context, t *c.Transaction) error {
+	mem.Mu.Lock()
+	defer mem.Mu.Unlock()
 
-	_, ok := e.TransactionIDs[t.ID]
+	_, ok := mem.TransactionIDs[t.ID]
 	if ok {
 		return ErrTransactionAlreadyExists
 	}
 
-	existingTx, ok := e.IdempotencyKeys[t.IdempotencyKey]
+	existingTx, ok := mem.IdempotencyKeys[t.IdempotencyKey]
 	if ok {
 		if existingTx.ID != t.ID {
 			return ErrIdempotencyPayloadConflict
@@ -225,22 +225,23 @@ func (e *MemoryStorage) AddTransaction(ctx context.Context, t *c.Transaction) er
 	// }
 
 	for _, entry := range t.LedgerEntries {
-		_, ok := e.Accounts[entry.AccountID]
+		_, ok := mem.Accounts[entry.AccountID]
 		if !ok {
 			return ErrAccountDoesNotExist
 		}
 	}
 
-	e.IdempotencyKeys[t.IdempotencyKey] = t
-	e.TransactionIDs[t.ID] = t
-	e.TransactionLog = append(e.TransactionLog, t)
+	mem.IdempotencyKeys[t.IdempotencyKey] = t
+	mem.TransactionIDs[t.ID] = t
+	mem.TransactionLog = append(mem.TransactionLog, t)
 	return nil
 }
 
-func (e *MemoryStorage) VerifyIntegrity(ctx context.Context) error {
+// TODO: No global locking?
+func (mem *MemoryStorage) VerifyIntegrity(ctx context.Context) error {
 	var total int64
-	for _, acc := range e.Accounts {
-		amount, err := e.GetAccountBalance(context.Background(), acc.ID)
+	for _, acc := range mem.Accounts {
+		amount, err := mem.GetAccountBalance(context.Background(), acc.ID)
 		if err != nil {
 			return err
 		}
