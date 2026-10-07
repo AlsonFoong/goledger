@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./adapters/postgres/migrations/000001_init_up.sql:/docker-entrypoint-initdb.d/000001_init_up.sql # Bind mount
+      - postgres_db_volume:/var/lib/postgresql # Volume
+  
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_db_volume:

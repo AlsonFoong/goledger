@@ -4,15 +4,19 @@ import (
 	"context"
 	"fmt"
 	c "ledger/core"
+	"log"
 	"strconv"
 	"sync"
 	"time"
 
-	m "ledger/adapters/memory"
+	p "ledger/adapters/postgres"
 )
 
 func main() {
-	e, _ := c.NewEngine(m.New())
+	// e, _ := c.NewEngine(m.New())
+	connString := "postgresql://postgres:password123@localhost:5432/postgres?sslmode=disable"
+	db, _ := p.New(context.Background(), connString)
+	e, _ := c.NewEngine(db)
 
 	e.CreateAccount(context.TODO(), &c.Account{
 		ID:   1,
@@ -35,11 +39,11 @@ func main() {
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	for i := 0; i < 5000000; i++ {
+	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func(id int64) {
 			defer wg.Done()
-			e.AddTransaction(context.TODO(), &c.Transaction{
+			err := e.AddTransaction(context.TODO(), &c.Transaction{
 				ID:             int64(i),
 				IdempotencyKey: "tx" + strconv.Itoa(i),
 				Timestamp:      time.Now(),
@@ -66,6 +70,10 @@ func main() {
 					},
 				},
 			})
+
+			if err != nil {
+				log.Fatalf("err occurred: %v", err)
+			}
 		}(int64(i))
 	}
 
@@ -84,13 +92,13 @@ func main() {
 	fmt.Println(e.VerifyIntegrity(context.TODO()))
 	fmt.Println("Time elapsed (second integrity check):", time.Since(start))
 
-	for i := 0; i < 1000000; i++ {
+	for i := 1001; i < 1500; i++ {
 		wg.Add(1)
 		go func(id int64) {
 			defer wg.Done()
-			e.AddTransaction(context.TODO(), &c.Transaction{
+			err := e.AddTransaction(context.TODO(), &c.Transaction{
 				ID:             int64(i),
-				IdempotencyKey: "tx" + strconv.Itoa(i),
+				IdempotencyKey: "txsecond" + strconv.Itoa(i),
 				Timestamp:      time.Now(),
 				LedgerEntries: []c.LedgerEntry{
 					{
@@ -115,9 +123,14 @@ func main() {
 					},
 				},
 			})
+
+			if err != nil {
+				log.Fatalf("err occurred: %v", err)
+			}
 		}(int64(i))
 	}
 
+	wg.Wait()
 	fmt.Println("Time elapsed (round two):", time.Since(start))
 
 	// fmt.Println(e.GetTransactionByID(998393))
