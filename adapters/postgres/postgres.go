@@ -17,6 +17,7 @@ var (
 	ErrConnPoolInitFailure = errors.New("could not initialize connection pool")
 	ErrConnPoolPingFailure = errors.New("could not reach database instance")
 	ErrInvalidState        = errors.New("invalid state detected - ledger is unbalanced!")
+	ErrAccountDoesNotExist = errors.New("account ID does not reference an existing account")
 )
 
 type PostgresDatabase struct {
@@ -50,6 +51,12 @@ func New(ctx context.Context, connString string) (*PostgresDatabase, error) {
 	}
 
 	return &PostgresDatabase{pool: pool}, nil
+}
+
+func (db *PostgresDatabase) Close() {
+	if db.pool != nil {
+		db.pool.Close()
+	}
 }
 
 func (db *PostgresDatabase) CreateAccount(ctx context.Context, acc *c.Account) error {
@@ -127,21 +134,26 @@ func (db *PostgresDatabase) CreateSnapshot(ctx context.Context, id int64) error 
 		return db.translateError(err)
 	}
 
-	var latestTxSequenceNumber = 0
+	var latestTxSequenceNumber *int64 // Allow nil value for accounts with no transactions
+	var seq int64
+
 	latestTxQuery := `SELECT sequence_number FROM transactions ORDER BY sequence_number DESC LIMIT 1;`
 	row := pgTx.QueryRow(ctx, latestTxQuery)
-	err = row.Scan(&latestTxSequenceNumber)
+	err = row.Scan(&seq)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return db.translateError(err)
 		}
+		// Leave sequence number as nil value
+	} else {
+		latestTxSequenceNumber = &seq
 	}
 
 	snapQuery := `
-	INSERT INTO snapshots (account_id, total_amount, last_processed_transaction_id)
+	INSERT INTO snapshots (account_id, total_amount, last_processed_transaction_sequence_number)
 	VALUES ($1, $2, $3)
 	ON CONFLICT (account_id)
-	DO UPDATE SET total_amount = $2, last_processed_transaction_id = $3;`
+	DO UPDATE SET total_amount = $2, last_processed_transaction_sequence_number = $3;`
 
 	_, err = pgTx.Exec(ctx, snapQuery, id, balance, latestTxSequenceNumber)
 	if err != nil {
@@ -201,6 +213,16 @@ func (db *PostgresDatabase) getTransaction(ctx context.Context, row pgx.Row) (*c
 }
 
 func (db *PostgresDatabase) getAccountBalance(ctx context.Context, dbTx PostgresTx, id int64) (int64, error) {
+	var exists bool
+	existenceCheck := `SELECT EXISTS(SELECT 1 FROM accounts WHERE id = $1)`
+	err := dbTx.QueryRow(ctx, existenceCheck, id).Scan(&exists)
+	if err != nil {
+		return 0, db.translateError(err)
+	}
+	if !exists {
+		return 0, ErrAccountDoesNotExist
+	}
+
 	snapshot, err := db.getSnapshot(ctx, dbTx, id)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -208,7 +230,7 @@ func (db *PostgresDatabase) getAccountBalance(ctx context.Context, dbTx Postgres
 		}
 
 		snapshot = &c.TransactionSnapshot{
-			AccountID:                  0,
+			AccountID:                  id,
 			TotalAmount:                0,
 			LastProcessedTransactionID: 0,
 		}
@@ -238,7 +260,7 @@ func (db *PostgresDatabase) getAccountBalance(ctx context.Context, dbTx Postgres
 }
 
 func (db *PostgresDatabase) getSnapshot(ctx context.Context, dbTx PostgresTx, id int64) (*c.TransactionSnapshot, error) {
-	snapQuery := `SELECT account_id, total_amount, last_processed_transaction_id FROM snapshots WHERE account_id = $1;`
+	snapQuery := `SELECT account_id, total_amount, last_processed_transaction_sequence_number FROM snapshots WHERE account_id = $1;`
 	row := dbTx.QueryRow(ctx, snapQuery, id)
 
 	var snapshot c.TransactionSnapshot

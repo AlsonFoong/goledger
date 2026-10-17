@@ -2,7 +2,10 @@ module ledger
 
 go 1.27.1
 
-require github.com/jackc/pgx/v5 v5.11.0
+require (
+	github.com/jackc/pgx/v5 v5.11.0
+	github.com/peterldowns/pgtestdb v0.1.1
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

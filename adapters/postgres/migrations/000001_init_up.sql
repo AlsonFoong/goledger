@@ -1,10 +1,9 @@
--- CREATE TYPE account_type AS ENUM('ASSET', 'LIABILITY', 'REVENUE', 'EXPENSES', 'EQUITY');
--- CREATE TYPE entry_direction AS ENUM('DEBIT', 'CREDIT');
+CREATE TYPE account_type AS ENUM('ASSET', 'LIABILITY', 'REVENUE', 'EXPENSES', 'EQUITY');
+CREATE TYPE entry_direction AS ENUM('DEBIT', 'CREDIT');
 
 CREATE TABLE accounts (
     id BIGINT PRIMARY KEY,
-    -- type account_type NOT NULL,
-    type VARCHAR(50) NOT NULL,
+    type account_type NOT NULL,
     name VARCHAR(255) NOT NULL
 );
 
@@ -20,15 +19,14 @@ CREATE TABLE ledger_entries (
     transaction_id BIGINT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     transaction_sequence_number BIGINT NOT NULL REFERENCES transactions(sequence_number) ON DELETE CASCADE,
     account_id BIGINT NOT NULL REFERENCES accounts(id),
-    -- entry_direction entry_direction NOT NULL,
-    entry_direction VARCHAR(50) NOT NULL,
+    entry_direction entry_direction NOT NULL,
     amount BIGINT NOT NULL CHECK (amount > 0)
 );
 
 CREATE TABLE snapshots (
     account_id BIGINT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
     total_amount BIGINT NOT NULL,
-    last_processed_transaction_id BIGINT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE
+    last_processed_transaction_sequence_number BIGINT REFERENCES transactions(sequence_number) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_entries_account_id ON ledger_entries(account_id);

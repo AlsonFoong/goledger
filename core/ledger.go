@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql/driver"
 	"errors"
 	"math"
 	"strings"
@@ -56,6 +57,16 @@ func (t AccountType) String() string {
 	}
 }
 
+// SQL implementation
+
+func (t AccountType) Value() (driver.Value, error) {
+	return t.String(), nil
+}
+
+func (t *AccountType) Scan(src any) error {
+	return nil
+}
+
 func (t AccountType) IsValid() bool {
 	return t >= AccountTypeAsset && t <= AccountTypeEquity
 }
@@ -85,6 +96,16 @@ func (d EntryDirection) String() string {
 	default:
 		return "UNKNOWN"
 	}
+}
+
+// SQL implementation
+
+func (d EntryDirection) Value() (driver.Value, error) {
+	return d.String(), nil
+}
+
+func (d EntryDirection) Scan(src any) error {
+	return nil
 }
 
 func (d EntryDirection) IsValid() bool {
