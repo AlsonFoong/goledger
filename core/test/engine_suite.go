@@ -2,6 +2,8 @@ package test
 
 import (
 	"context"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -433,6 +435,75 @@ func RunEngineTests(t *testing.T, storageFactory func(t *testing.T) c.Storage) {
 	}
 }
 
+func RunAddTransactionBenchmark(b *testing.B, storageFactory func(b *testing.B) c.Storage) {
+	storage := storageFactory(b)
+	engine, err := c.NewEngine(storage)
+	if err != nil {
+		b.Fatalf("creating engine failed: %v", err)
+	}
+
+	engine.CreateAccount(context.TODO(), &c.Account{
+		ID:   1,
+		Type: c.AccountTypeEquity,
+		Name: "Owner's Equity",
+	})
+
+	engine.CreateAccount(context.TODO(), &c.Account{
+		ID:   2,
+		Type: c.AccountTypeAsset,
+		Name: "Buildings",
+	})
+
+	engine.CreateAccount(context.TODO(), &c.Account{
+		ID:   3,
+		Type: c.AccountTypeAsset,
+		Name: "Equipment",
+	})
+
+	var count int64
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < 1000; i++ {
+				id := atomic.AddInt64(&count, 1)
+
+				err := engine.AddTransaction(context.TODO(), &c.Transaction{
+					ID:             int64(id),
+					IdempotencyKey: "tx" + strconv.FormatInt(id, 10),
+					Timestamp:      time.Now(),
+					LedgerEntries: []c.LedgerEntry{
+						{
+							AccountID:      1,
+							EntryDirection: c.DirectionCredit,
+							Amount:         1000000000,
+						},
+						{
+							AccountID:      2,
+							EntryDirection: c.DirectionDebit,
+							Amount:         1000000000,
+						},
+						{
+							AccountID:      1,
+							EntryDirection: c.DirectionCredit,
+							Amount:         200000000,
+						},
+						{
+							AccountID:      3,
+							EntryDirection: c.DirectionDebit,
+							Amount:         200000000,
+						},
+					},
+				})
+
+				if err != nil {
+					b.Fatalf("err occurred: %v", err)
+				}
+			}
+		}
+	})
+}
+
 func CreateTestAccount(e *c.Engine, t *testing.T) {
 	t.Helper()
 	err := e.CreateAccount(context.TODO(), &c.Account{
@@ -446,9 +517,9 @@ func CreateTestAccount(e *c.Engine, t *testing.T) {
 	}
 }
 
-func CreateTestTransaction(e *c.Engine, t *testing.T) {
+func CreateTestTransaction(engine *c.Engine, t *testing.T) {
 	t.Helper()
-	err := e.AddTransaction(context.TODO(), &c.Transaction{
+	err := engine.AddTransaction(context.TODO(), &c.Transaction{
 		ID:             0,
 		IdempotencyKey: "test",
 		Timestamp:      time.Now(),
@@ -471,9 +542,9 @@ func CreateTestTransaction(e *c.Engine, t *testing.T) {
 	}
 }
 
-func CreateTestSnapshot(e *c.Engine, t *testing.T) {
+func CreateTestSnapshot(engine *c.Engine, t *testing.T) {
 	t.Helper()
-	err := e.CreateSnapshot(context.TODO(), 0)
+	err := engine.CreateSnapshot(context.TODO(), 0)
 
 	if err != nil {
 		t.Fatalf("creating initial snapshot failed: %v", err)

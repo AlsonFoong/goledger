@@ -19,6 +19,12 @@ func TestPostgresDatabase(t *testing.T) {
 	})
 }
 
+func BenchmarkAddTransaction(b *testing.B) {
+	ct.RunAddTransactionBenchmark(b, func(b *testing.B) c.Storage {
+		return setupTestDB(b)
+	})
+}
+
 //go:embed migrations/000001_init_up.sql
 var migrationScript string
 
@@ -35,8 +41,8 @@ func (migrator) Migrate(ctx context.Context, db *sql.DB, conf pgtestdb.Config) e
 	return err
 }
 
-func setupTestDB(t *testing.T) *PostgresDatabase {
-	t.Helper()
+func setupTestDB(tb testing.TB) *PostgresDatabase {
+	tb.Helper()
 
 	conf := pgtestdb.Config{
 		DriverName: "pgx",
@@ -47,14 +53,14 @@ func setupTestDB(t *testing.T) *PostgresDatabase {
 		Options:    "sslmode=disable",
 	}
 
-	dbConfig := pgtestdb.Custom(t, conf, migrator{})
+	dbConfig := pgtestdb.Custom(tb, conf, migrator{})
 	ctx := context.TODO()
 	db, err := New(ctx, dbConfig.URL())
 	if err != nil {
-		t.Fatalf("failed to initialize database pool: %v", err)
+		tb.Fatalf("failed to initialize database pool: %v", err)
 	}
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		db.Close()
 	})
 
